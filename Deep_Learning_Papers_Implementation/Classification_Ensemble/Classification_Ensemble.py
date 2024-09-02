@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from keras.models import load_model
 from keras.utils import to_categorical
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout
@@ -9,7 +10,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 import seaborn as sns
 
-epochs = 10
+from simple_ensemble_model import *
+
+epochs = 5
 
 train = pd.read_csv('./sign_mnist_train.csv')
 test = pd.read_csv('./sign_mnist_test.csv')
@@ -45,90 +48,29 @@ X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_st
 # 원-핫 인코딩
 y_train_cat = to_categorical(y_train, num_classes=25)
 y_val_cat = to_categorical(y_val, num_classes=25)
-
 y_test = test_data[:, 0]
 y_test_cat = to_categorical(y_test, num_classes=25)
 
 # Reshape for the neural network
 X_train = X_train.reshape(X_train.shape[0], 28, 28, 1)
 X_val = X_val.reshape(X_val.shape[0], 28, 28, 1)
-X_test = X_test.reshape(X_test.shape[0], 28, 28, 1)
+X_test = (test_data[:, 1:] / 255.0).reshape(test_data.shape[0], 28, 28, 1)
 
-# Model 1
-model1 = Sequential()
+model1 = simple_ensemble_model1(28, 28, 1)
+model2 = simple_ensemble_model2(28, 28, 1)
+model3 = simple_ensemble_model3(28, 28, 1)
 
-model1.add(Conv2D(32, (3, 3), input_shape=(28, 28, 1), activation='relu'))
-model1.add(MaxPooling2D(pool_size=(2, 2)))
-model1.add(Dropout(0.2))
-
-model1.add(Conv2D(64, (3, 3), activation='relu'))
-model1.add(MaxPooling2D(pool_size=(2, 2)))
-model1.add(Dropout(0.2))
-
-model1.add(Conv2D(128, (3, 3), activation='relu'))
-model1.add(MaxPooling2D(pool_size=(2, 2)))
-model1.add(Dropout(0.2))
-
-model1.add(Flatten())
-
-model1.add(Dense(128, activation='relu'))
-model1.add(Dense(25, activation='softmax'))
-
-model1.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-model1.summary()
-
-# Training the CNN model1
+# Model1
 history1 = model1.fit(X_train, y_train_cat, batch_size=128, epochs=epochs, verbose=1, validation_data=(X_val, y_val_cat))
 model1.save('saved_models/model1.hdf5')
 
 # Model 2
-model2 = Sequential()
-
-model2.add(Conv2D(32, (3, 3), input_shape=(28, 28, 1), activation='relu'))
-model2.add(Conv2D(32, (3, 3), activation='relu'))
-model2.add(MaxPooling2D(pool_size=(2, 2)))
-
-model2.add(Conv2D(64, (3, 3), activation='relu'))
-model2.add(Conv2D(64, (3, 3), activation='relu'))
-model2.add(Conv2D(64, (3, 3), activation='relu'))
-model2.add(MaxPooling2D(pool_size=(2, 2)))
-
-model2.add(Conv2D(128, (3, 3), activation='relu'))
-model2.add(Conv2D(25, (1, 1)))
-
-model2.add(Flatten())
-
-model2.add(Dense(25, activation='softmax'))
-
-model2.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-model2.summary()
-
 history2 = model2.fit(X_train, y_train_cat, batch_size=128, epochs=epochs, verbose=1, validation_data=(X_val, y_val_cat))
 model2.save('saved_models/model2.hdf5')
 
 # Model 3
-model3 = Sequential()
-
-model3.add(Conv2D(32, (3, 3), input_shape=(28, 28, 1), activation='relu'))
-model3.add(MaxPooling2D(pool_size=(2, 2)))
-model3.add(Dropout(0.2))
-
-model3.add(Conv2D(64, (3, 3), activation='relu'))
-model3.add(MaxPooling2D(pool_size=(2, 2)))
-model3.add(Dropout(0.2))
-
-model3.add(Flatten())
-
-model3.add(Dense(25, activation='softmax'))
-
-model3.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-model3.summary()
-
 history3 = model3.fit(X_train, y_train_cat, batch_size=128, epochs=epochs, verbose=1, validation_data=(X_val, y_val_cat))
 model3.save('saved_models/model3.hdf5')
-
-# Model Ensemble
-from keras.models import load_model
 
 model1 = load_model('saved_models/model1.hdf5')
 model2 = load_model('saved_models/model2.hdf5')
@@ -140,6 +82,9 @@ preds = [model.predict(X_test) for model in models]
 preds = np.array(preds)
 summed = np.sum(preds, axis=0)
 
+prediction1 = np.argmax(preds[0], axis=1)
+prediction2 = np.argmax(preds[1], axis=1)
+prediction3 = np.argmax(preds[2], axis=1)
 # argmax across classes
 ensemble_prediction = np.argmax(summed, axis=1)
 
@@ -154,11 +99,41 @@ print('Accuracy Score for model3 = ', accuracy3)
 print('Accuracy Score for average ensemble = ', ensemble_accuracy)
 
 # Weighted average ensemble
-weights = [0.4, 0.2, 0.4]
+weights = [0.7, 0.1, 0.2]
 
 weighted_preds = np.tensordot(preds, weights, axes=((0), (0)))
 weighted_ensemble_prediction = np.argmax(weighted_preds, axis=1)
 
 weighted_accuracy = accuracy_score(y_test, weighted_ensemble_prediction)
 
-print('Accuracy Score for weighted average ensemble = ', weighted_accuracy)ㅊ
+print('Accuracy Score for weighted average ensemble = ', weighted_accuracy)
+
+
+# 잘못 분류된 비율 시각화
+def plot_incorrect_fraction(y_true, y_pred, class_names):
+    # Calculate the confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    
+    # Compute the fraction of incorrect predictions for each class
+    incorr_fraction = 1 - np.diag(cm) / np.sum(cm, axis=1)
+    
+    # Plotting
+    fig, ax = plt.subplots(figsize=(12, 12))
+    plt.bar(np.arange(24), incorr_fraction)
+    plt.xlabel('True Label')
+    plt.ylabel('Fraction of incorrect predictions')
+    plt.xticks(np.arange(25), class_names)
+    plt.show()
+
+# Model 1
+plot_incorrect_fraction(y_test, prediction1, class_names)
+
+# Model 2
+plot_incorrect_fraction(y_test, prediction2, class_names)
+
+# Model 3
+plot_incorrect_fraction(y_test, prediction3, class_names)
+
+# Model_ensemble
+plot_incorrect_fraction(y_test, ensemble_prediction, class_names)
+
