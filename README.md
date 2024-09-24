@@ -37,17 +37,10 @@ cd J_deep_learning
 
 Explore the folders to find implementations and training scripts for different deep learning tasks. Each directory contains its own `README.md` with detailed instructions on running the models.
 
-## 🧑‍💻 Contributing
-
-Feel free to contribute to this repository by:
-- Adding new implementations.
-- Improving existing models.
-- Documenting and fixing issues.
-
 ## 🌱 Future Directions
 
 - Implementation of new research papers.
 - Addition of advanced techniques in deep learning (GANs, Transformers, etc.).
 - Detailed documentation and tutorials for users.
 
-Stay tuned for updates and enhancements! Your contributions are welcome and appreciated.
+Stay tuned for updates and enhancements!
